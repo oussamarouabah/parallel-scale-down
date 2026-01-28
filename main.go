@@ -15,42 +15,48 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
-func main() {
-	var inputFilePath string
-
-	var rootCmd = &cobra.Command{
-		Use:          "kubectl-parallel-scale-down",
+var (
+	inputFilePath string
+	rootCmd       = &cobra.Command{
+		Use:          "parallel-scale-down",
 		Short:        "Scale down deployments and statefulsets in parallel",
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			config, err := readConfigFile(inputFilePath)
-			if err != nil {
-				return fmt.Errorf("error reading config file: %v", err)
-			}
-
-			kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-				clientcmd.NewDefaultClientConfigLoadingRules(),
-				&clientcmd.ConfigOverrides{},
-			).ClientConfig()
-			if err != nil {
-				return fmt.Errorf("error building kubeconfig: %v", err)
-			}
-
-			clientset, err := kubernetes.NewForConfig(kubeConfig)
-			if err != nil {
-				return fmt.Errorf("error creating clientset: %v", err)
-			}
-
-			return runScaleDown(cmd.Context(), clientset, config)
-		},
+		RunE:         run,
 	}
+)
 
+func init() {
 	rootCmd.Flags().StringVar(&inputFilePath, "file", "", "Path to the input yaml file containing list of deployments and statefulsets")
 	_ = rootCmd.MarkFlagRequired("file")
+}
 
+func main() {
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func run(cmd *cobra.Command, args []string) error {
+	config, err := readConfigFile(inputFilePath)
+	if err != nil {
+		return fmt.Errorf("error reading config file: %v", err)
+	}
+
+	kubeConfig, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
+	if err != nil {
+		return fmt.Errorf("error building kubeconfig: %v", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return fmt.Errorf("error creating clientset: %v", err)
+	}
+
+	return runScaleDown(cmd.Context(), clientset, config)
 }
 
 type Config struct {
