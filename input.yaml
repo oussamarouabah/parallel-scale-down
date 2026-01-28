@@ -1,0 +1,20 @@
+deployments:
+  - name: nginx-deployment-1
+    namespace: default
+    replicas: 0
+  - name: nginx-deployment-2
+    namespace: default
+    replicas: 0
+  - name: nginx-deployment-3
+    namespace: default
+    replicas: 0
+statefulsets:
+  - name: nginx-statefulset-1
+    namespace: default
+    replicas: 0
+  - name: nginx-statefulset-2
+    namespace: default
+    replicas: 0
+  - name: nginx-statefulset-3
+    namespace: default
+    replicas: 0
