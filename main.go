@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
@@ -65,9 +66,10 @@ type Config struct {
 }
 
 type ResourceItem struct {
-	Name      string `yaml:"name"`
-	Namespace string `yaml:"namespace"`
-	Replicas  *int32 `yaml:"replicas"`
+	Name      string            `yaml:"name"`
+	Namespace string            `yaml:"namespace"`
+	Replicas  *int32            `yaml:"replicas"`
+	Labels    map[string]string `yaml:"labels"`
 }
 
 func readConfigFile(path string) (*Config, error) {
@@ -83,14 +85,60 @@ func readConfigFile(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+func resolveResources(ctx context.Context, clientset *kubernetes.Clientset, items []ResourceItem, kind string) ([]ResourceItem, error) {
+	var result []ResourceItem
+	for _, item := range items {
+		if item.Name != "" {
+			result = append(result, item)
+			continue
+		}
+		if len(item.Labels) > 0 {
+			selector := labels.SelectorFromSet(item.Labels).String()
+			listOpts := metav1.ListOptions{LabelSelector: selector}
+
+			if kind == "deployment" {
+				list, err := clientset.AppsV1().Deployments(item.Namespace).List(ctx, listOpts)
+				if err != nil {
+					return nil, fmt.Errorf("failed to list deployments with labels %v: %w", item.Labels, err)
+				}
+				for _, d := range list.Items {
+					newItem := item
+					newItem.Name = d.Name
+					result = append(result, newItem)
+				}
+			} else if kind == "statefulset" {
+				list, err := clientset.AppsV1().StatefulSets(item.Namespace).List(ctx, listOpts)
+				if err != nil {
+					return nil, fmt.Errorf("failed to list statefulsets with labels %v: %w", item.Labels, err)
+				}
+				for _, s := range list.Items {
+					newItem := item
+					newItem.Name = s.Name
+					result = append(result, newItem)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
 func runScaleDown(ctx context.Context, clientset *kubernetes.Clientset, config *Config) error {
+	deployments, err := resolveResources(ctx, clientset, config.Deployments, "deployment")
+	if err != nil {
+		return err
+	}
+	statefulsets, err := resolveResources(ctx, clientset, config.StatefulSets, "statefulset")
+	if err != nil {
+		return err
+	}
+
 	var wg sync.WaitGroup
-	totalOps := len(config.Deployments) + len(config.StatefulSets)
+	totalOps := len(deployments) + len(statefulsets)
 	errChan := make(chan error, totalOps)
 
 	fmt.Println("Starting parallel scale down...")
 
-	for _, d := range config.Deployments {
+	for _, d := range deployments {
 		wg.Add(1)
 		go func(r ResourceItem) {
 			defer wg.Done()
@@ -100,7 +148,7 @@ func runScaleDown(ctx context.Context, clientset *kubernetes.Clientset, config *
 		}(d)
 	}
 
-	for _, s := range config.StatefulSets {
+	for _, s := range statefulsets {
 		wg.Add(1)
 		go func(r ResourceItem) {
 			defer wg.Done()
