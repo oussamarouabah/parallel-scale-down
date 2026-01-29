@@ -127,16 +127,32 @@ func runScaleDown(ctx context.Context, clientset *kubernetes.Clientset, config *
 	if err != nil {
 		return err
 	}
+	if len(deployments) > 0 {
+		fmt.Println("\nDeployments to be scaled down:")
+	}
+	for _, d := range deployments {
+		fmt.Printf("- %s/%s\n", d.Namespace, d.Name)
+	}
+
 	statefulsets, err := resolveResources(ctx, clientset, config.StatefulSets, "statefulset")
 	if err != nil {
 		return err
+	}
+	if len(statefulsets) > 0 {
+		fmt.Println("\nStatefulSets to be scaled down:")
+	}
+	for _, s := range statefulsets {
+		fmt.Printf("- %s/%s\n", s.Namespace, s.Name)
 	}
 
 	var wg sync.WaitGroup
 	totalOps := len(deployments) + len(statefulsets)
 	errChan := make(chan error, totalOps)
+	if totalOps > 0 {
+		fmt.Printf("\n------------------------------------------------\n\n")
+	}
 
-	fmt.Println("Starting parallel scale down...")
+	fmt.Printf("Starting parallel scale down...\n\n")
 
 	for _, d := range deployments {
 		wg.Add(1)
