@@ -240,6 +240,7 @@ func waitForDeploymentScaleDown(ctx context.Context, clientset *kubernetes.Clien
 			fmt.Printf("[%s/%s] Scale complete.\n", r.Namespace, r.Name)
 			break
 		}
+		fmt.Printf("[%s/%s] Waiting for deployment scale down... Current replicas: %d\n", r.Namespace, r.Name, d.Status.Replicas)
 	}
 
 	return nil
@@ -259,6 +260,8 @@ func waitForStatefulSetScaleDown(ctx context.Context, clientset *kubernetes.Clie
 			fmt.Printf("[%s/%s] Scale complete.\n", r.Namespace, r.Name)
 			break
 		}
+
+		fmt.Printf("[%s/%s] Waiting for statefulset scale down... Current replicas: %d\n", r.Namespace, r.Name, s.Status.Replicas)
 	}
 
 	return nil
